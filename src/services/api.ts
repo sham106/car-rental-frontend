@@ -1,7 +1,8 @@
 
 import { type Vehicle, type BackendBooking } from '../types';
 
-const API_BASE_URL = '/api';
+// Use environment variable for production, fallback to relative path for development
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const VEHICLE_TO_BACKEND_KEYS: Record<string, string> = {
   make: 'make',
