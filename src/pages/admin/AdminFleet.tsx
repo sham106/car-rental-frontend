@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ApiService } from '../../services/api';
 import { type Vehicle, VehicleCategory } from '../../types';
-import Skeleton, { SkeletonCard } from '../../components/Skeleton';
+import { SkeletonCard } from '../../components/Skeleton';
 
 const AdminFleet: React.FC = () => {
   const [fleet, setFleet] = useState<Vehicle[]>([]);
@@ -10,7 +10,6 @@ const AdminFleet: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const initialFormState: Partial<Vehicle> = {
@@ -98,23 +97,12 @@ const AdminFleet: React.FC = () => {
       alert(`${invalidFiles} file(s) were skipped. Only images under 5MB are allowed.`);
     }
 
-    setUploadedFiles(prev => [...prev, ...newFiles]);
-  };
-
-  // Convert file to base64 for API submission
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
+    setImagePreviews(prev => [...prev, ...newFiles.map(file => URL.createObjectURL(file))]);
   };
 
   // Remove a specific image by index
   const removeImage = (index: number) => {
     setImagePreviews(prev => prev.filter((_, i) => i !== index));
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   // Move image to main position (first position)
@@ -191,7 +179,6 @@ const AdminFleet: React.FC = () => {
       setFormData(initialFormState);
       setEditingVehicleId(null);
       setImagePreviews([]);
-      setUploadedFiles([]);
     } catch (err: any) {
       let errorMessage = err.message || 'Failed to save vehicle';
       try {
@@ -215,7 +202,6 @@ const AdminFleet: React.FC = () => {
     setEditingVehicleId(null);
     setFormData(initialFormState);
     setImagePreviews([]);
-    setUploadedFiles([]);
     setIsModalOpen(true);
   };
 
@@ -226,7 +212,6 @@ const AdminFleet: React.FC = () => {
     // Load existing images into previews
     const existingImages = [vehicle.image, ...(vehicle.gallery || [])].filter(Boolean) as string[];
     setImagePreviews(existingImages);
-    setUploadedFiles([]);
     
     setIsModalOpen(true);
   };

@@ -1,5 +1,5 @@
 
-import { type Vehicle, type Booking, type BackendBooking } from '../types';
+import { type Vehicle, type BackendBooking } from '../types';
 
 const API_BASE_URL = '/api';
 

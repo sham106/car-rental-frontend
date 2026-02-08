@@ -1,5 +1,4 @@
 // Notification API Service
-import { ApiService } from './api';
 
 export interface Notification {
   id: number;

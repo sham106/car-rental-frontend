@@ -188,7 +188,6 @@ const BookingFlow: React.FC = () => {
         break;
         
       case 3: // Driver Information
-        let hasError = false;
         if (!formData.driverName.trim()) {
           setError('Please enter the driver\'s full name.');
           setTouchedFields(prev => ({ ...prev, driverName: true }));

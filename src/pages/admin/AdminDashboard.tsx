@@ -29,7 +29,6 @@ const AdminDashboard: React.FC = () => {
     pendingApprovals: 0,
   });
   const [bookings, setBookings] = useState<RecentBooking[]>([]);
-  const [vehicles, setVehicles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [revenueData, setRevenueData] = useState<any[]>([]);
 
