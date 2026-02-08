@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #0a0a0a;
+    color: white;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, .serif {
+    font-family: 'Playfair Display', serif;
+  }
+
+  /* Custom selection color for luxury feel */
+  ::selection {
+    background-color: #d4af37;
+    color: black;
+  }
+}
+
+@layer components {
+  /* Cinematic Glassmorphism */
+  .glass {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  /* Brand Accents */
+  .gold-text {
+    color: #d4af37;
+  }
+
+  .gold-bg {
+    background-color: #d4af37;
+  }
+
+  .gold-border {
+    border-color: #d4af37;
+  }
+
+  /* Custom Inputs for Dark Theme */
+  .inverted-calendar::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(0.8) sepia(1) saturate(5) hue-rotate(10deg);
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  /* Smooth scroll and scrollbar hiding */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Cinematic Animations */
+  @keyframes fadeIn {
+    from { 
+      opacity: 0; 
+      transform: translateY(20px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-15px); }
+    100% { transform: translateY(0px); }
+  }
+
+  .animate-float {
+    animation: float 5s ease-in-out infinite;
+  }
+}
