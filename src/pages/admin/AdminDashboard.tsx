@@ -42,9 +42,8 @@ const AdminDashboard: React.FC = () => {
       const bookingsData = await ApiService.getBookings();
       setBookings(bookingsData);
 
-      // Fetch vehicles for fleet utilization
+      // Fetch vehicles for fleet utilization (used for stats calculation)
       const vehiclesData = await ApiService.getVehicles();
-      setVehicles(vehiclesData);
 
       // Calculate stats
       const today = new Date().toISOString().split('T')[0];
