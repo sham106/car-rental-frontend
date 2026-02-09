@@ -19,7 +19,7 @@ export interface NotificationResponse {
 }
 
 class NotificationService {
-  private static baseUrl = 'http://localhost:8000/api/notifications';
+  private static baseUrl = `${import.meta.env.VITE_API_BASE_URL || '/api'}/notifications`;
 
   private static getHeaders() {
     const token = localStorage.getItem('luxe_token') || localStorage.getItem('access_token');
