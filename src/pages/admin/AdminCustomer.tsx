@@ -3,6 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { ApiService } from '../../services/api';
 import Skeleton, { SkeletonTable } from '../../components/Skeleton';
 
+// Get backend base URL (without /api suffix) for media files
+const getBackendBaseUrl = () => {
+  const apiUrl = import.meta.env.VITE_API_BASE_URL || '';
+  return apiUrl.replace(/\/api\/?$/, '');
+};
+
 interface BackendUser {
   id: number;
   email: string;
@@ -92,9 +98,10 @@ const AdminCustomers: React.FC = () => {
     }
 
     // Ensure the image URL is absolute. If it's a relative path from Django (e.g. /media/...), prepend the backend URL.
+    const backendUrl = getBackendBaseUrl();
     const imageUrl = bookingWithLicense.license_image.startsWith('http') 
       ? bookingWithLicense.license_image 
-      : `http://localhost:8000${bookingWithLicense.license_image}`;
+      : `${backendUrl}${bookingWithLicense.license_image}`;
 
     return (
       <div>
