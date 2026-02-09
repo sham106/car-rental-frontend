@@ -97,7 +97,10 @@ const AdminFleet: React.FC = () => {
       alert(`${invalidFiles} file(s) were skipped. Only images under 5MB are allowed.`);
     }
 
-    setImagePreviews(prev => [...prev, ...newFiles.map(file => URL.createObjectURL(file))]);
+    // Reset file input to allow re-uploading the same files
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Remove a specific image by index
