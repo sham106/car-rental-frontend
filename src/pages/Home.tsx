@@ -13,18 +13,22 @@ const Home: React.FC = () => {
   const [totalFleetSize, setTotalFleetSize] = useState(0);
 
   useEffect(() => {
-    const fetchFeatured = async () => {
+    const fetchData = async () => {
       try {
-        const vehicles = await ApiService.getVehicles();
-        setFeaturedVehicles(vehicles.slice(0, 3));
-        setTotalFleetSize(vehicles.length);
+        // Fetch featured vehicles (only 3) and total count in parallel
+        const [featuredVehicles, totalCount] = await Promise.all([
+          ApiService.getVehicles(3),
+          ApiService.getVehicleCount(),
+        ]);
+        setFeaturedVehicles(featuredVehicles);
+        setTotalFleetSize(totalCount);
       } catch (error) {
         console.error('Failed to load featured vehicles:', error);
       } finally {
         setIsLoading(false);
       }
     };
-    fetchFeatured();
+    fetchData();
   }, []);
 
   return (

@@ -126,11 +126,15 @@ export class ApiService {
     return response.json();
   }
 
-  // Fleet CRUD
-  static async getVehicles(): Promise<Vehicle[]> {
+  // Fleet CRUD with optional limit
+  static async getVehicles(limit?: number): Promise<Vehicle[]> {
+    let url = `${API_BASE_URL}/vehicles/`;
+    if (limit && limit > 0) {
+      url += `?limit=${limit}`;
+    }
     let response: Response;
     try {
-      response = await fetch(`${API_BASE_URL}/vehicles/`, {
+      response = await fetch(url, {
         headers: this.getHeaders(),
       });
     } catch (networkErr: any) {
@@ -148,7 +152,30 @@ export class ApiService {
       throw new Error(`Failed to fetch fleet: ${response.status} ${detail}`);
     }
     const list = await response.json();
-    return Array.isArray(list) ? list.map((v: Record<string, unknown>) => vehicleFromBackend(v)) : [];
+    // Handle both paginated response and regular array
+    if (Array.isArray(list)) {
+      return list.map((v: Record<string, unknown>) => vehicleFromBackend(v));
+    }
+    // Handle paginated response structure
+    const results = (list as Record<string, unknown>).results;
+    if (Array.isArray(results)) {
+      return results.map((v: Record<string, unknown>) => vehicleFromBackend(v));
+    }
+    return [];
+  }
+
+  static async getVehicleCount(): Promise<number> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/vehicles/count/`, {
+        headers: this.getHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to fetch count');
+      const data = await response.json();
+      return data.count as number;
+    } catch {
+      // Fallback: return 0 if endpoint doesn't exist
+      return 0;
+    }
   }
 
   static async getVehicleById(id: string): Promise<Vehicle> {
