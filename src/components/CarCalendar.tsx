@@ -40,9 +40,8 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
 
   const minAllowedDate = useMemo(() => {
     if (!minDate) return today;
-    const d = new Date(minDate);
-    d.setHours(0, 0, 0, 0);
-    return d;
+    const [year, month, day] = minDate.split('-').map(Number);
+    return new Date(year, month - 1, day);
   }, [minDate, today]);
 
   // Parse booked dates and create a set of disabled dates
@@ -63,7 +62,7 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
   }, [bookedDates]);
 
   const isDateDisabled = (date: Date): boolean => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDate(date);
     
     // Disable past dates
     if (date < minAllowedDate) return true;
@@ -77,18 +76,18 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
   const isDateInRange = (date: Date): boolean => {
     if (!isRange || !rangeStart) return false;
     
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatDate(date);
     
     if (rangeStart && !rangeEnd) {
       // When only start is selected, show preview range
       if (dateStr === rangeStart) return true;
-      const start = new Date(rangeStart);
-      return date > start && date <= (hoveredDate ? new Date(hoveredDate) : start);
+      const start = parseDateString(rangeStart);
+      return date > start && date <= (hoveredDate ? parseDateString(hoveredDate) : start);
     }
     
     if (rangeStart && rangeEnd) {
-      const start = new Date(rangeStart);
-      const end = new Date(rangeEnd);
+      const start = parseDateString(rangeStart);
+      const end = parseDateString(rangeEnd);
       return date >= start && date <= end;
     }
     
@@ -103,8 +102,19 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
 
+  // Helper function to format date in local timezone (YYYY-MM-DD)
   const formatDate = (date: Date): string => {
-    return date.toISOString().split('T')[0];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Helper function to parse date string safely (handles timezone issues)
+  const parseDateString = (dateStr: string): Date => {
+    // Create date from YYYY-MM-DD using local timezone
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
   };
 
   const handlePrevMonth = () => {
@@ -126,7 +136,9 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
         onDateSelect(dateStr);
       } else {
         // Complete the range
-        if (new Date(dateStr) >= new Date(rangeStart)) {
+        const selected = parseDateString(dateStr);
+        const start = parseDateString(rangeStart);
+        if (selected >= start) {
           onDateSelect(`${rangeStart} to ${dateStr}`);
         } else {
           onDateSelect(dateStr); // Start over if clicked before start date
@@ -246,7 +258,10 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
         {selectedDate && !isRange && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-sm text-white/60">
-              Selected: <span className="gold-text font-bold">{new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+              Selected: <span className="gold-text font-bold">{(() => {
+                const [year, month, day] = selectedDate.split('-').map(Number);
+                return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+              })()}</span>
             </p>
           </div>
         )}
@@ -254,9 +269,15 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
         {isRange && rangeStart && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-sm text-white/60">
-              From: <span className="gold-text font-bold">{new Date(rangeStart).toLocaleDateString()}</span>
+              From: <span className="gold-text font-bold">{(() => {
+                const [year, month, day] = rangeStart.split('-').map(Number);
+                return new Date(year, month - 1, day).toLocaleDateString();
+              })()}</span>
               {rangeEnd && (
-                <> → <span className="gold-text font-bold">{new Date(rangeEnd).toLocaleDateString()}</span></>
+                <> → <span className="gold-text font-bold">{(() => {
+                  const [year, month, day] = rangeEnd.split('-').map(Number);
+                  return new Date(year, month - 1, day).toLocaleDateString();
+                })()}</span></>
               )}
             </p>
           </div>

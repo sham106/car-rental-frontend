@@ -604,7 +604,13 @@ const BookingFlow: React.FC = () => {
                     bookedDates={bookedDates}
                     selectedDate={formData.pickupDate}
                     onDateSelect={(date) => setFormData(prev => ({ ...prev, pickupDate: date }))}
-                    minDate={new Date().toISOString()}
+                    minDate={(() => {
+                      const d = new Date();
+                      const year = d.getFullYear();
+                      const month = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      return `${year}-${month}-${day}`;
+                    })()}
                     label="Pick-up & Return Date *"
                     isRange={true}
                     rangeStart={formData.pickupDate?.split(' to ')[0]}
@@ -619,13 +625,21 @@ const BookingFlow: React.FC = () => {
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 text-sm">Pick-up</span>
                           <span className="gold-text font-bold">
-                            {new Date(formData.pickupDate.split(' to ')[0]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {(() => {
+                              const dateStr = formData.pickupDate.split(' to ')[0];
+                              const [year, month, day] = dateStr.split('-').map(Number);
+                              return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                            })()}
                           </span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 text-sm">Return</span>
                           <span className="gold-text font-bold">
-                            {new Date(formData.pickupDate.split(' to ')[1]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {(() => {
+                              const dateStr = formData.pickupDate.split(' to ')[1];
+                              const [year, month, day] = dateStr.split('-').map(Number);
+                              return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                            })()}
                           </span>
                         </div>
                         <div className="pt-4 border-t border-white/10">
@@ -633,8 +647,12 @@ const BookingFlow: React.FC = () => {
                             <span className="text-white/60 text-sm">Duration</span>
                             <span className="text-white font-bold">
                               {(() => {
-                                const start = new Date(formData.pickupDate.split(' to ')[0]);
-                                const end = new Date(formData.pickupDate.split(' to ')[1]);
+                                const startStr = formData.pickupDate.split(' to ')[0];
+                                const endStr = formData.pickupDate.split(' to ')[1];
+                                const [sy, sm, sd] = startStr.split('-').map(Number);
+                                const [ey, em, ed] = endStr.split('-').map(Number);
+                                const start = new Date(sy, sm - 1, sd);
+                                const end = new Date(ey, em - 1, ed);
                                 const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                                 return `${days} day${days > 1 ? 's' : ''}`;
                               })()}
@@ -646,8 +664,12 @@ const BookingFlow: React.FC = () => {
                             <span className="text-white/60 text-sm">Estimated Total</span>
                             <span className="text-2xl font-bold gold-text">
                               ${(() => {
-                                const start = new Date(formData.pickupDate.split(' to ')[0]);
-                                const end = new Date(formData.pickupDate.split(' to ')[1]);
+                                const startStr = formData.pickupDate.split(' to ')[0];
+                                const endStr = formData.pickupDate.split(' to ')[1];
+                                const [sy, sm, sd] = startStr.split('-').map(Number);
+                                const [ey, em, ed] = endStr.split('-').map(Number);
+                                const start = new Date(sy, sm - 1, sd);
+                                const end = new Date(ey, em - 1, ed);
                                 const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
                                 return (vehicle ? vehicle.pricePerDay * days : 0).toLocaleString();
                               })()}
@@ -677,8 +699,12 @@ const BookingFlow: React.FC = () => {
                   {formData.pickupDate && formData.pickupDate.includes(' to ') && (
                     <p className="text-[10px] uppercase tracking-widest gold-text mt-1">
                       {(() => {
-                        const start = new Date(formData.pickupDate.split(' to ')[0]);
-                        const end = new Date(formData.pickupDate.split(' to ')[1]);
+                        const startStr = formData.pickupDate.split(' to ')[0];
+                        const endStr = formData.pickupDate.split(' to ')[1];
+                        const [sy, sm, sd] = startStr.split('-').map(Number);
+                        const [ey, em, ed] = endStr.split('-').map(Number);
+                        const start = new Date(sy, sm - 1, sd);
+                        const end = new Date(ey, em - 1, ed);
                         const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                         return `${days} day${days > 1 ? 's' : ''}`;
                       })()} selected
