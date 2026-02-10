@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import VehicleCard from '../components/VehicleCard';
+import SkeletonCard from '../components/SkeletonCard';
 import { ApiService } from '../services/api';
 import { type Vehicle } from '../types';
 import LuxeConcierge from '../components/LuxeConcierge';
@@ -111,7 +112,11 @@ const Home: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {isLoading ? (
-              <p className="text-white/50 col-span-3 text-center">Loading collection...</p>
+              <>
+                <SkeletonCard />
+                <SkeletonCard />
+                <SkeletonCard />
+              </>
             ) : featuredVehicles.length > 0 ? (
               featuredVehicles.map(v => <VehicleCard key={v.id} vehicle={v} />)
             ) : (
