@@ -317,6 +317,26 @@ export class ApiService {
     return response.json();
   }
 
+  static async getVehicleBookedDates(vehicleId: string): Promise<{
+    vehicle_id: string;
+    bookings: Array<{
+      id: number;
+      pickup_date: string;
+      return_date: string;
+      status: string;
+      user_name: string;
+    }>;
+  }> {
+    const response = await fetch(`${API_BASE_URL}/vehicles/${vehicleId}/booked-dates/`, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to fetch booked dates');
+    }
+    return response.json();
+  }
+
   static async updateBookingStatus(id: number, status: string): Promise<BackendBooking> {
     const response = await fetch(`${API_BASE_URL}/bookings/${id}/`, {
       method: 'PATCH',

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ApiService } from '../services/api';
 import type { Vehicle } from '../types';
+import CarCalendar from '../components/CarCalendar';
 
 interface FormData {
   pickupLocation: string;
@@ -49,6 +50,8 @@ const BookingFlow: React.FC = () => {
   const [bookingSuccess, setBookingSuccess] = useState<any>(null);
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [licensePreview, setLicensePreview] = useState<string | null>(null);
+  const [bookedDates, setBookedDates] = useState<any[]>([]);
+  const [isLoadingBookedDates, setIsLoadingBookedDates] = useState(false);
   const [touchedFields, setTouchedFields] = useState<TouchedFields>({
     driverName: false,
     driverEmail: false,
@@ -67,7 +70,7 @@ const BookingFlow: React.FC = () => {
     pickupLocation: 'Dubai Marina Showroom',
     returnLocation: 'Same as Pick-up',
     pickupDate: '',
-    returnDate: '',
+    returnDate: '', // Kept for backward compatibility
     driverName: '',
     driverEmail: '',
     driverPhone: '',
@@ -75,19 +78,6 @@ const BookingFlow: React.FC = () => {
     licenseFile: null,
     selectedEnhancements: [],
   });
-
-  // Get minimum date for datetime-local (now)
-  const getMinDateTime = () => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    return now.toISOString().slice(0, 16);
-  };
-
-  // Get minimum return date (same as pickup date)
-  const getMinReturnDate = () => {
-    if (!formData.pickupDate) return getMinDateTime();
-    return formData.pickupDate;
-  };
 
   useEffect(() => {
     // Check if user is logged in
@@ -106,6 +96,17 @@ const BookingFlow: React.FC = () => {
       try {
         const vehicleData = await ApiService.getVehicleById(initialVehicleId);
         setVehicle(vehicleData);
+        
+        // Fetch booked dates for this vehicle
+        setIsLoadingBookedDates(true);
+        try {
+          const bookedData = await ApiService.getVehicleBookedDates(initialVehicleId);
+          setBookedDates(bookedData.bookings || []);
+        } catch (err) {
+          console.error('Failed to fetch booked dates:', err);
+        } finally {
+          setIsLoadingBookedDates(false);
+        }
       } catch (err) {
         console.error('Failed to fetch vehicle:', err);
         setError('Failed to load vehicle details');
@@ -127,11 +128,22 @@ const BookingFlow: React.FC = () => {
     if (step === 1 && vehicle) {
       setIsCheckingAvailability(true);
       setAvailabilityError(null);
+      
+      // Extract dates from the range format
+      let pickupDate = formData.pickupDate;
+      let returnDate = formData.pickupDate;
+      
+      if (formData.pickupDate.includes(' to ')) {
+        const dates = formData.pickupDate.split(' to ');
+        pickupDate = dates[0];
+        returnDate = dates[1];
+      }
+      
       try {
         const availability = await ApiService.checkVehicleAvailability(
           vehicle.id,
-          formData.pickupDate,
-          formData.returnDate
+          pickupDate,
+          returnDate
         );
         
         if (!availability.available) {
@@ -169,17 +181,22 @@ const BookingFlow: React.FC = () => {
     switch (step) {
       case 1: // Reservation Details
         if (!formData.pickupDate) {
-          setError('Please select a pickup date and time.');
+          setError('Please select a pick-up date and return date.');
           return false;
         }
-        if (!formData.returnDate) {
-          setError('Please select a return date and time.');
+        
+        // Check if pickupDate contains a range (format: "YYYY-MM-DD to YYYY-MM-DD")
+        if (!formData.pickupDate.includes(' to ')) {
+          setError('Please select both pick-up and return dates from the calendar.');
           return false;
         }
-        const pickup = new Date(formData.pickupDate);
-        const returnDateObj = new Date(formData.returnDate);
+        
+        const dates = formData.pickupDate.split(' to ');
+        const pickup = new Date(dates[0]);
+        const returnDateObj = new Date(dates[1]);
+        
         if (returnDateObj <= pickup) {
-          setError('Return date must be after the pickup date.');
+          setError('Return date must be after the pick-up date.');
           return false;
         }
         break;
@@ -240,10 +257,27 @@ const BookingFlow: React.FC = () => {
   }
 
   const calculateTotal = (): TotalResult => {
-    if (!vehicle || !formData.pickupDate || !formData.returnDate) {
+    if (!vehicle || !formData.pickupDate) {
       return { basePrice: 0, enhancementsPrice: 0, total: 0, days: 0 };
     }
     
+    // Handle new date format with range
+    if (formData.pickupDate.includes(' to ')) {
+      const dates = formData.pickupDate.split(' to ');
+      const pickup = new Date(dates[0]);
+      const returnDateObj = new Date(dates[1]);
+      const days = Math.max(1, Math.ceil((returnDateObj.getTime() - pickup.getTime()) / (1000 * 60 * 60 * 24)));
+      
+      const basePrice = vehicle.pricePerDay * days;
+      const enhancementsPrice = formData.selectedEnhancements.reduce((total, enhName) => {
+        const enh = ENHANCEMENTS.find(e => e.name === enhName);
+        return total + (enh ? enh.price * days : 0);
+      }, 0);
+      
+      return { basePrice, enhancementsPrice, total: basePrice + enhancementsPrice, days };
+    }
+    
+    // Fallback for old format
     const pickup = new Date(formData.pickupDate);
     const returnDateObj = new Date(formData.returnDate);
     const days = Math.max(1, Math.ceil((returnDateObj.getTime() - pickup.getTime()) / (1000 * 60 * 60 * 24)));
@@ -332,10 +366,20 @@ const BookingFlow: React.FC = () => {
     setError(null);
 
     try {
+      // Extract dates from the range format
+      let pickupDate = formData.pickupDate;
+      let returnDate = formData.pickupDate;
+      
+      if (formData.pickupDate.includes(' to ')) {
+        const dates = formData.pickupDate.split(' to ');
+        pickupDate = dates[0];
+        returnDate = dates[1];
+      }
+      
       const bookingData = {
         vehicle_id: parseInt(vehicle.id),
-        pickup_date: formData.pickupDate,
-        return_date: formData.returnDate,
+        pickup_date: pickupDate,
+        return_date: returnDate,
         pickup_location: formData.pickupLocation,
         return_location: formData.returnLocation === 'Same as Pick-up' ? formData.pickupLocation : formData.returnLocation,
         driver_name: formData.driverName,
@@ -543,36 +587,102 @@ const BookingFlow: React.FC = () => {
                     <option className="bg-black">Dubai Int. Airport (DXB)</option>
                   </select>
                 </div>
-                <div className="space-y-4">
-                  <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Pick-up Date & Time *</label>
-                  <input 
-                    type="datetime-local" 
-                    name="pickupDate"
-                    value={formData.pickupDate}
-                    onChange={handleInputChange}
-                    min={getMinDateTime()}
-                    className="w-full bg-white/5 border border-white/10 p-4 text-sm focus:outline-none focus:border-[#d4af37] inverted-calendar" 
-                  />
-                </div>
-                <div className="space-y-4">
-                  <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Return Date & Time *</label>
-                  <input 
-                    type="datetime-local" 
-                    name="returnDate"
-                    value={formData.returnDate}
-                    onChange={handleInputChange}
-                    min={getMinReturnDate()}
-                    className="w-full bg-white/5 border border-white/10 p-4 text-sm focus:outline-none focus:border-[#d4af37] inverted-calendar" 
-                  />
-                </div>
               </div>
+              
+              {/* Date Selection - Using Calendar */}
+              {isLoadingBookedDates ? (
+                <div className="flex items-center justify-center py-12">
+                  <svg className="w-8 h-8 gold-text animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                  <span className="ml-3 text-white/40">Loading availability...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <CarCalendar
+                    bookedDates={bookedDates}
+                    selectedDate={formData.pickupDate}
+                    onDateSelect={(date) => setFormData(prev => ({ ...prev, pickupDate: date }))}
+                    minDate={new Date().toISOString()}
+                    label="Pick-up & Return Date *"
+                    isRange={true}
+                    rangeStart={formData.pickupDate?.split(' to ')[0]}
+                    rangeEnd={formData.pickupDate?.includes(' to ') ? formData.pickupDate?.split(' to ')[1] : undefined}
+                  />
+                  
+                  {/* Date Range Summary */}
+                  {formData.pickupDate && formData.pickupDate.includes(' to ') && (
+                    <div className="space-y-4">
+                      <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Booking Summary</label>
+                      <div className="glass p-6 rounded-sm space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-white/60 text-sm">Pick-up</span>
+                          <span className="gold-text font-bold">
+                            {new Date(formData.pickupDate.split(' to ')[0]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-white/60 text-sm">Return</span>
+                          <span className="gold-text font-bold">
+                            {new Date(formData.pickupDate.split(' to ')[1]).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        <div className="pt-4 border-t border-white/10">
+                          <div className="flex justify-between items-center">
+                            <span className="text-white/60 text-sm">Duration</span>
+                            <span className="text-white font-bold">
+                              {(() => {
+                                const start = new Date(formData.pickupDate.split(' to ')[0]);
+                                const end = new Date(formData.pickupDate.split(' to ')[1]);
+                                const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                                return `${days} day${days > 1 ? 's' : ''}`;
+                              })()}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="pt-4 border-t border-white/10">
+                          <div className="flex justify-between items-center">
+                            <span className="text-white/60 text-sm">Estimated Total</span>
+                            <span className="text-2xl font-bold gold-text">
+                              ${(() => {
+                                const start = new Date(formData.pickupDate.split(' to ')[0]);
+                                const end = new Date(formData.pickupDate.split(' to ')[1]);
+                                const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+                                return (vehicle ? vehicle.pricePerDay * days : 0).toLocaleString();
+                              })()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!formData.pickupDate && (
+                    <div className="space-y-4">
+                      <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Booking Summary</label>
+                      <div className="glass p-6 rounded-sm text-center">
+                        <p className="text-white/40 text-sm">Select a pick-up date and return date from the calendar to see your booking summary.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="p-6 bg-white/[0.02] border border-white/5 flex items-center space-x-6">
                 <img src={vehicle.image || 'https://picsum.photos/400/300'} className="w-24 h-16 object-cover rounded-sm" />
                 <div>
                   <h4 className="font-bold serif">{vehicle.make} {vehicle.model}</h4>
                   <p className="text-[10px] uppercase tracking-widest text-white/30">${vehicle.pricePerDay} per day</p>
-                  {days > 0 && (
-                    <p className="text-[10px] uppercase tracking-widest gold-text mt-1">{days} day{days > 1 ? 's' : ''} selected</p>
+                  {formData.pickupDate && formData.pickupDate.includes(' to ') && (
+                    <p className="text-[10px] uppercase tracking-widest gold-text mt-1">
+                      {(() => {
+                        const start = new Date(formData.pickupDate.split(' to ')[0]);
+                        const end = new Date(formData.pickupDate.split(' to ')[1]);
+                        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                        return `${days} day${days > 1 ? 's' : ''}`;
+                      })()} selected
+                    </p>
                   )}
                 </div>
               </div>
