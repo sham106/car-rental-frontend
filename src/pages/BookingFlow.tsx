@@ -78,6 +78,9 @@ const BookingFlow: React.FC = () => {
     licenseFile: null,
     selectedEnhancements: [],
   });
+  
+  // Same-day booking toggle
+  const [isSameDay, setIsSameDay] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in
@@ -139,6 +142,11 @@ const BookingFlow: React.FC = () => {
         returnDate = dates[1];
       }
       
+      // For same-day bookings, set return date same as pickup
+      if (isSameDay) {
+        returnDate = pickupDate;
+      }
+      
       try {
         const availability = await ApiService.checkVehicleAvailability(
           vehicle.id,
@@ -181,23 +189,39 @@ const BookingFlow: React.FC = () => {
     switch (step) {
       case 1: // Reservation Details
         if (!formData.pickupDate) {
-          setError('Please select a pick-up date and return date.');
+          setError(isSameDay 
+            ? 'Please select a date for your same-day booking.'
+            : 'Please select a pick-up date and return date.');
           return false;
         }
         
-        // Check if pickupDate contains a range (format: "YYYY-MM-DD to YYYY-MM-DD")
-        if (!formData.pickupDate.includes(' to ')) {
-          setError('Please select both pick-up and return dates from the calendar.');
-          return false;
-        }
-        
-        const dates = formData.pickupDate.split(' to ');
-        const pickup = new Date(dates[0]);
-        const returnDateObj = new Date(dates[1]);
-        
-        if (returnDateObj <= pickup) {
-          setError('Return date must be after the pick-up date.');
-          return false;
+        // Check if it's a valid date format
+        if (isSameDay) {
+          // Same-day booking: single date selected
+          if (formData.pickupDate.includes(' to ')) {
+            // Same-day format with " to " - this is valid for same-day
+            const dates = formData.pickupDate.split(' to ');
+            if (dates[0] !== dates[1]) {
+              setError('Please select the same date for pick-up and return for same-day booking.');
+              return false;
+            }
+          }
+          // Single date without " to " is also valid
+        } else {
+          // Multi-day booking: must contain " to "
+          if (!formData.pickupDate.includes(' to ')) {
+            setError('Please select both pick-up and return dates from the calendar.');
+            return false;
+          }
+          
+          const dates = formData.pickupDate.split(' to ');
+          const pickup = new Date(dates[0]);
+          const returnDateObj = new Date(dates[1]);
+          
+          if (returnDateObj <= pickup) {
+            setError('Return date must be after the pick-up date.');
+            return false;
+          }
         }
         break;
         
@@ -261,7 +285,18 @@ const BookingFlow: React.FC = () => {
       return { basePrice: 0, enhancementsPrice: 0, total: 0, days: 0 };
     }
     
-    // Handle new date format with range
+    if (isSameDay) {
+      // Same-day booking: 1 day rate
+      const basePrice = vehicle.pricePerDay;
+      const enhancementsPrice = formData.selectedEnhancements.reduce((total, enhName) => {
+        const enh = ENHANCEMENTS.find(e => e.name === enhName);
+        return total + (enh ? enh.price : 0);
+      }, 0);
+      
+      return { basePrice, enhancementsPrice, total: basePrice + enhancementsPrice, days: 1 };
+    }
+    
+    // Handle multi-day date format with range
     if (formData.pickupDate.includes(' to ')) {
       const dates = formData.pickupDate.split(' to ');
       const pickup = new Date(dates[0]);
@@ -277,18 +312,7 @@ const BookingFlow: React.FC = () => {
       return { basePrice, enhancementsPrice, total: basePrice + enhancementsPrice, days };
     }
     
-    // Fallback for old format
-    const pickup = new Date(formData.pickupDate);
-    const returnDateObj = new Date(formData.returnDate);
-    const days = Math.max(1, Math.ceil((returnDateObj.getTime() - pickup.getTime()) / (1000 * 60 * 60 * 24)));
-    
-    const basePrice = vehicle.pricePerDay * days;
-    const enhancementsPrice = formData.selectedEnhancements.reduce((total, enhName) => {
-      const enh = ENHANCEMENTS.find(e => e.name === enhName);
-      return total + (enh ? enh.price * days : 0);
-    }, 0);
-    
-    return { basePrice, enhancementsPrice, total: basePrice + enhancementsPrice, days };
+    return { basePrice: 0, enhancementsPrice: 0, total: 0, days: 0 };
   };
 
   const { basePrice, enhancementsPrice, total, days } = calculateTotal();
@@ -374,6 +398,11 @@ const BookingFlow: React.FC = () => {
         const dates = formData.pickupDate.split(' to ');
         pickupDate = dates[0];
         returnDate = dates[1];
+      }
+      
+      // For same-day bookings, set return date same as pickup
+      if (isSameDay) {
+        returnDate = pickupDate;
       }
       
       const bookingData = {
@@ -600,25 +629,57 @@ const BookingFlow: React.FC = () => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <CarCalendar
-                    bookedDates={bookedDates}
-                    selectedDate={formData.pickupDate}
-                    onDateSelect={(date) => setFormData(prev => ({ ...prev, pickupDate: date }))}
-                    minDate={(() => {
-                      const d = new Date();
-                      const year = d.getFullYear();
-                      const month = String(d.getMonth() + 1).padStart(2, '0');
-                      const day = String(d.getDate()).padStart(2, '0');
-                      return `${year}-${month}-${day}`;
-                    })()}
-                    label="Pick-up & Return Date *"
-                    isRange={true}
-                    rangeStart={formData.pickupDate?.split(' to ')[0]}
-                    rangeEnd={formData.pickupDate?.includes(' to ') ? formData.pickupDate?.split(' to ')[1] : undefined}
-                  />
+                  <div>
+                    {/* Same-day / Multi-day Toggle */}
+                    <div className="flex gap-4 mb-4">
+                      <button
+                        onClick={() => {
+                          setIsSameDay(false);
+                          setFormData(prev => ({ ...prev, pickupDate: '' }));
+                        }}
+                        className={`px-4 py-2 text-xs uppercase tracking-widest font-bold transition-all ${
+                          !isSameDay 
+                            ? 'gold-bg text-black' 
+                            : 'bg-white/5 text-white/40 hover:bg-white/10'
+                        }`}
+                      >
+                        Multi-day
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsSameDay(true);
+                          setFormData(prev => ({ ...prev, pickupDate: '' }));
+                        }}
+                        className={`px-4 py-2 text-xs uppercase tracking-widest font-bold transition-all ${
+                          isSameDay 
+                            ? 'gold-bg text-black' 
+                            : 'bg-white/5 text-white/40 hover:bg-white/10'
+                        }`}
+                      >
+                        Same Day
+                      </button>
+                    </div>
+                    
+                    <CarCalendar
+                      bookedDates={bookedDates}
+                      selectedDate={formData.pickupDate}
+                      onDateSelect={(date) => setFormData(prev => ({ ...prev, pickupDate: date }))}
+                      minDate={(() => {
+                        const d = new Date();
+                        const year = d.getFullYear();
+                        const month = String(d.getMonth() + 1).padStart(2, '0');
+                        const day = String(d.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                      })()}
+                      label={isSameDay ? "Select Date *" : "Pick-up & Return Date *"}
+                      mode={isSameDay ? 'same-day' : 'range'}
+                      rangeStart={isSameDay ? formData.pickupDate : formData.pickupDate?.split(' to ')[0]}
+                      rangeEnd={!isSameDay && formData.pickupDate?.includes(' to ') ? formData.pickupDate?.split(' to ')[1] : undefined}
+                    />
+                  </div>
                   
-                  {/* Date Range Summary */}
-                  {formData.pickupDate && formData.pickupDate.includes(' to ') && (
+                  {/* Date Summary */}
+                  {formData.pickupDate ? (
                     <div className="space-y-4">
                       <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Booking Summary</label>
                       <div className="glass p-6 rounded-sm space-y-4">
@@ -626,27 +687,39 @@ const BookingFlow: React.FC = () => {
                           <span className="text-white/60 text-sm">Pick-up</span>
                           <span className="gold-text font-bold">
                             {(() => {
-                              const dateStr = formData.pickupDate.split(' to ')[0];
-                              const [year, month, day] = dateStr.split('-').map(Number);
+                              const dates = formData.pickupDate.includes(' to ') 
+                                ? formData.pickupDate.split(' to ')[0]
+                                : formData.pickupDate;
+                              const [year, month, day] = dates.split('-').map(Number);
                               return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
                             })()}
                           </span>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-white/60 text-sm">Return</span>
-                          <span className="gold-text font-bold">
-                            {(() => {
-                              const dateStr = formData.pickupDate.split(' to ')[1];
-                              const [year, month, day] = dateStr.split('-').map(Number);
-                              return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                            })()}
-                          </span>
-                        </div>
+                        {isSameDay ? (
+                          <div className="flex justify-between items-center">
+                            <span className="text-white/60 text-sm">Return</span>
+                            <span className="green-text font-bold">Same Day</span>
+                          </div>
+                        ) : formData.pickupDate.includes(' to ') && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-white/60 text-sm">Return</span>
+                            <span className="gold-text font-bold">
+                              {(() => {
+                                const dateStr = formData.pickupDate.split(' to ')[1];
+                                const [year, month, day] = dateStr.split('-').map(Number);
+                                return new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                              })()}
+                            </span>
+                          </div>
+                        )}
                         <div className="pt-4 border-t border-white/10">
                           <div className="flex justify-between items-center">
                             <span className="text-white/60 text-sm">Duration</span>
                             <span className="text-white font-bold">
                               {(() => {
+                                if (isSameDay) {
+                                  return 'Same Day';
+                                }
                                 const startStr = formData.pickupDate.split(' to ')[0];
                                 const endStr = formData.pickupDate.split(' to ')[1];
                                 const [sy, sm, sd] = startStr.split('-').map(Number);
@@ -664,6 +737,10 @@ const BookingFlow: React.FC = () => {
                             <span className="text-white/60 text-sm">Estimated Total</span>
                             <span className="text-2xl font-bold gold-text">
                               ${(() => {
+                                if (isSameDay) {
+                                  // Same-day booking: 1 day rate
+                                  return vehicle ? vehicle.pricePerDay.toLocaleString() : 0;
+                                }
                                 const startStr = formData.pickupDate.split(' to ')[0];
                                 const endStr = formData.pickupDate.split(' to ')[1];
                                 const [sy, sm, sd] = startStr.split('-').map(Number);
@@ -678,13 +755,15 @@ const BookingFlow: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  )}
-                  
-                  {!formData.pickupDate && (
+                  ) : (
                     <div className="space-y-4">
                       <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Booking Summary</label>
                       <div className="glass p-6 rounded-sm text-center">
-                        <p className="text-white/40 text-sm">Select a pick-up date and return date from the calendar to see your booking summary.</p>
+                        <p className="text-white/40 text-sm">
+                          {isSameDay 
+                            ? 'Select a date from the calendar to book for the same day.'
+                            : 'Select pick-up and return dates from the calendar to see your booking summary.'}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -696,18 +775,22 @@ const BookingFlow: React.FC = () => {
                 <div>
                   <h4 className="font-bold serif">{vehicle.make} {vehicle.model}</h4>
                   <p className="text-[10px] uppercase tracking-widest text-white/30">${vehicle.pricePerDay} per day</p>
-                  {formData.pickupDate && formData.pickupDate.includes(' to ') && (
+                  {formData.pickupDate && (
                     <p className="text-[10px] uppercase tracking-widest gold-text mt-1">
-                      {(() => {
-                        const startStr = formData.pickupDate.split(' to ')[0];
-                        const endStr = formData.pickupDate.split(' to ')[1];
-                        const [sy, sm, sd] = startStr.split('-').map(Number);
-                        const [ey, em, ed] = endStr.split('-').map(Number);
-                        const start = new Date(sy, sm - 1, sd);
-                        const end = new Date(ey, em - 1, ed);
-                        const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-                        return `${days} day${days > 1 ? 's' : ''}`;
-                      })()} selected
+                      {isSameDay ? 'Same Day Rental' : (
+                        <>
+                          {(() => {
+                            const startStr = formData.pickupDate.split(' to ')[0];
+                            const endStr = formData.pickupDate.includes(' to ') ? formData.pickupDate.split(' to ')[1] : startStr;
+                            const [sy, sm, sd] = startStr.split('-').map(Number);
+                            const [ey, em, ed] = endStr.split('-').map(Number);
+                            const start = new Date(sy, sm - 1, sd);
+                            const end = new Date(ey, em - 1, ed);
+                            const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                            return `${days} day${days > 1 ? 's' : ''} selected`;
+                          })()}
+                        </>
+                      )}
                     </p>
                   )}
                 </div>

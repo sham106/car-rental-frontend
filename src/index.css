@@ -43,6 +43,19 @@
     border-color: #d4af37;
   }
 
+  /* Green accent for same-day booking */
+  .green-text {
+    color: #22c55e;
+  }
+
+  .green-bg {
+    background-color: #22c55e;
+  }
+
+  .green-border {
+    border-color: #22c55e;
+  }
+
   /* Custom Inputs for Dark Theme */
   .inverted-calendar::-webkit-calendar-picker-indicator {
     filter: invert(1) brightness(0.8) sepia(1) saturate(5) hue-rotate(10deg);

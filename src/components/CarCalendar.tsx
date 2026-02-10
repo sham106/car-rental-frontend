@@ -17,6 +17,7 @@ interface CarCalendarProps {
   isRange?: boolean;
   rangeStart?: string;
   rangeEnd?: string;
+  mode?: 'single' | 'range' | 'same-day';
 }
 
 const CarCalendar: React.FC<CarCalendarProps> = ({
@@ -28,6 +29,7 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
   isRange = false,
   rangeStart,
   rangeEnd,
+  mode = 'range',
 }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [hoveredDate, setHoveredDate] = useState<string | null>(null);
@@ -48,13 +50,13 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
   const disabledDates = useMemo(() => {
     const disabled = new Set<string>();
     bookedDates.forEach((booking) => {
-      const pickup = new Date(booking.pickup_date);
-      const returnDate = new Date(booking.return_date);
+      const pickup = parseDateString(booking.pickup_date);
+      const returnDate = parseDateString(booking.return_date);
       
       // Add all dates from pickup to return (inclusive)
       const current = new Date(pickup);
       while (current <= returnDate) {
-        disabled.add(current.toISOString().split('T')[0]);
+        disabled.add(formatDate(current));
         current.setDate(current.getDate() + 1);
       }
     });
@@ -74,24 +76,20 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
   };
 
   const isDateInRange = (date: Date): boolean => {
-    if (!isRange || !rangeStart) return false;
+    if (!rangeStart) return false;
     
     const dateStr = formatDate(date);
     
-    if (rangeStart && !rangeEnd) {
+    if (!rangeEnd) {
       // When only start is selected, show preview range
       if (dateStr === rangeStart) return true;
       const start = parseDateString(rangeStart);
       return date > start && date <= (hoveredDate ? parseDateString(hoveredDate) : start);
     }
     
-    if (rangeStart && rangeEnd) {
-      const start = parseDateString(rangeStart);
-      const end = parseDateString(rangeEnd);
-      return date >= start && date <= end;
-    }
-    
-    return false;
+    const start = parseDateString(rangeStart);
+    const end = parseDateString(rangeEnd);
+    return date >= start && date <= end;
   };
 
   const getDaysInMonth = (date: Date): number => {
@@ -130,7 +128,16 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
     
     const dateStr = formatDate(date);
     
-    if (isRange) {
+    if (mode === 'same-day') {
+      // For same-day booking mode: single click selects start, second click on same date completes same-day booking
+      if (!rangeStart || (rangeStart && rangeEnd) || rangeStart !== dateStr) {
+        // Start new selection (single day initially)
+        onDateSelect(dateStr);
+      } else if (rangeStart === dateStr) {
+        // Clicking same date again converts to same-day booking
+        onDateSelect(`${dateStr} to ${dateStr}`);
+      }
+    } else if (isRange || mode === 'range') {
       if (!rangeStart || (rangeStart && rangeEnd)) {
         // Start new range
         onDateSelect(dateStr);
@@ -145,6 +152,7 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
         }
       }
     } else {
+      // Single day selection
       onDateSelect(dateStr);
     }
   };
@@ -164,17 +172,20 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
       const dateStr = formatDate(date);
       const disabled = isDateDisabled(date);
-      const isSelected = !isRange 
+      const isSelected = !isRange && mode !== 'range' && mode !== 'same-day'
         ? dateStr === selectedDate 
         : false;
-      const isRangeStart = isRange && rangeStart === dateStr;
-      const isRangeEnd = isRange && rangeEnd === dateStr;
-      const inRange = isDateInRange(date);
+      const isRangeStart = (isRange || mode === 'range' || mode === 'same-day') && rangeStart === dateStr;
+      const isRangeEnd = (isRange || mode === 'range' || mode === 'same-day') && rangeEnd === dateStr;
+      const inRange = (isRange || mode === 'range' || mode === 'same-day') && isDateInRange(date);
 
       let cellClass = 'p-2 text-sm transition-all cursor-pointer rounded-sm ';
       
       if (disabled) {
         cellClass += 'bg-red-500/10 text-red-400 cursor-not-allowed line-through opacity-50 ';
+      } else if (rangeStart && rangeEnd && rangeStart === rangeEnd && rangeStart === dateStr) {
+        // Same-day booking - highlight with green
+        cellClass += 'bg-green-500/30 text-green-400 font-bold border-2 border-green-500 ';
       } else if (isSelected || isRangeStart) {
         cellClass += 'bg-[#d4af37] text-black font-bold ';
       } else if (isRangeEnd) {
@@ -255,7 +266,7 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
         </div>
 
         {/* Selected Date Display */}
-        {selectedDate && !isRange && (
+        {selectedDate && !isRange && mode !== 'range' && mode !== 'same-day' && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-sm text-white/60">
               Selected: <span className="gold-text font-bold">{(() => {
@@ -266,7 +277,7 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
           </div>
         )}
 
-        {isRange && rangeStart && (
+        {(isRange || mode === 'range' || mode === 'same-day') && rangeStart && (
           <div className="mt-4 pt-4 border-t border-white/10">
             <p className="text-sm text-white/60">
               From: <span className="gold-text font-bold">{(() => {
@@ -283,8 +294,15 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
           </div>
         )}
 
+        {/* Same-day booking info */}
+        {mode === 'same-day' && (
+          <p className="text-xs text-white/30 mt-2">
+            Click once to select a date, or click the same date again for same-day booking
+          </p>
+        )}
+
         {/* Legend */}
-        <div className="mt-4 pt-4 border-t border-white/10 flex gap-4 text-xs">
+        <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-[#d4af37] rounded-sm"></div>
             <span className="text-white/40">Selected</span>
@@ -293,6 +311,18 @@ const CarCalendar: React.FC<CarCalendarProps> = ({
             <div className="w-4 h-4 bg-red-500/20 rounded-sm"></div>
             <span className="text-white/40">Booked</span>
           </div>
+          {(isRange || mode === 'range' || mode === 'same-day') && (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-[#d4af37]/20 rounded-sm border border-[#d4af37]"></div>
+              <span className="text-white/40">Range</span>
+            </div>
+          )}
+          {mode === 'same-day' && (
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-green-500/30 rounded-sm border border-green-500"></div>
+              <span className="text-white/40">Same Day</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
